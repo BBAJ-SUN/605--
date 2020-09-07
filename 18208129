@@ -63,3 +63,44 @@ def get_content(html):
 	        final.append(temp)
 	    i = i + 1
 	return final_day,final
+	
+	
+	from pyecharts import Map, Geo
+import pandas as pd
+import time
+
+data = pd.read_csv('全国省会天气情况.csv')
+# data1 = data.groupby(by=['地区']).head()
+data_all = []
+j = 0
+hour = 0
+city = 31
+for i in range(1, 25):
+    data_temp = []
+    data1 = data.groupby('地区').head(i)
+    for j in range(0,31):
+        data_temp.append(tuple(data1.groupby("地区").tail(1)[['地区', '温度']].values[j]))
+
+    data_all.append(data_temp)
+#print(data_all)
+# data1 = [
+#             ("北京", 9),("上海", 12),("天津", 12),("重庆", 12),("哈尔滨", 14),("长春", 15),
+#             ("沈阳", 16),("呼和浩特", 18),("石家庄", 18),("太原", 19),("西安", 21),("济南", 21),
+#             ("乌鲁木齐", 21),("拉萨", 22),("西宁", 23),("兰州", 24),("银川", 24),("郑州", 25),
+#             ("南京", 21),("武汉", 22),("杭州", 23),("合肥", 24),("福州", 24),("南昌", 25),
+#             ("长沙", 21),("贵阳", 22),("成都", 23),("广州", 24),("昆明", 24),("南宁", 25),("海口", 25)]
+
+for i in range(24):
+
+    # i = i % 24
+    attr, value = Geo.cast(data_all[i])
+
+    geo = Geo("全国主要城市温度热力图", title_color="#fff", title_pos="center", width=1200, height=600, background_color='#404a59')
+
+    geo.add("空气质量热力图", attr, value, visual_range=[15, 30], type='heatmap',visual_text_color="#fff", symbol_size=35, is_visualmap=True, is_roam=False)
+    geo.show_config()
+    geo.render(path="04-04空气质量热力图" +str(i)+ ".html")
+    # time.sleep(0.001)
+    
+    
+    
