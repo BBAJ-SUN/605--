@@ -267,3 +267,100 @@ city_list = list(data_today_CN["地区"].unique())
 for city in city_list:
     today_line(city)
     seven_future(city)
+    
+#历史天气爬取
+list_city = ["beijing","shanghai","tianjin","chongqing","haerbin","changchun",
+ "shenyang","huhehaote","shijiazhuang","taiyuan","xian","jinan","wulumuqi",
+ "lasa","xining","lanzhou","yinchuan","zhengzhou","nanjing","wuhan","hangzhou",
+ "hefei","fuzhou","nanchang","changsha","guiyang","chengdu","guangzhou","kunming",
+ "nanning","haikou"]
+list_city1 = ['北京', '上海', '天津', '重庆', '哈尔滨', '长春', '沈阳', '呼和浩特', '石家庄', '太原',
+       '西安', '济南', '乌鲁木齐', '拉萨', '西宁', '兰州', '银川', '郑州', '南京', '武汉', '杭州',
+       '合肥', '福州', '南昌', '长沙', '贵阳', '成都', '广州', '昆明', '南宁', '海口']
+
+def get_result(url):
+    r1 = requests.get(url)
+    r1.encoding = r1.apparent_encoding
+    if r1.status_code!=200:
+        return -1
+    soup = BeautifulSoup(r1.text, 'html.parser')
+
+    all_days = []
+
+    for tr in soup.find('table').children:
+        if isinstance(tr, bs4.element.Tag):
+            tds = tr('td')
+            tda = tds[0].find_all('a')
+            if len(tda) >= 1:
+                r_content="http://www.tianqihoubao.com/lishi/(.*)/month.*"
+                zero = re.compile(r_content).findall(url)[0]
+                one = tda[0].string
+                two = tds[1].string
+                three = tds[2].string
+                four = tds[3].string
+                one = one.replace('\r\n', "")
+                one = one.replace(' ', "")
+                two = two.replace('\r\n', "")
+                two = two.replace(' ', "")
+                three = three.replace('\r\n', "")
+                three = three.replace(' ', "")
+                four = four.replace('\r\n', "")
+                four = four.replace(' ', "")
+                all_days.append([zero,one, two, three, four])
+    return all_days
+#提取出最高温度最低温度
+def deal_data(data):
+    data["温度"] = data["温度"].apply(lambda x: x.split("/"))
+    data["最高温度"] = data["温度"].apply(lambda x: x[0])
+    data["最低温度"] = data["温度"].apply(lambda x: x[1])
+    data["最高温度"] = data["最高温度"].apply(lambda x: x.replace("℃",""))
+    data["最低温度"] = data["最低温度"].apply(lambda x: x.replace("℃",""))
+    data["地区"].replace(to_replace=list_city,value=list_city1,inplace=True)
+    del data["温度"]
+    
+    return data
+date = []
+weather = []
+temp = []
+url = []
+for city in list_city:
+    for year in range(2011,2020):
+        for month in range(1,13):
+            if month<10:
+                url.append("http://www.tianqihoubao.com/lishi/"+city+"/"+"month/"+str(year)+"0"+str(month)+".html")
+            else:
+                url.append("http://www.tianqihoubao.com/lishi/"+city+"/"+"month/"+str(year)+str(month)+".html")     
+ 
+data_history = []
+num=1
+for i in url:
+    list1 = get_result(i)
+    if list1==-1:
+        continue
+    else:
+        data_history.extend(list1)
+    print(num)
+    num=num+1
+
+    #将爬取的数据放入对应列表
+region = []
+date = []
+temp = []
+for i in range(0,len(data_history)):
+    region.append(data_history[i][0])
+    date.append(data_history[i][1])
+    temp.append(data_history[i][3])
+    
+#将上面的列表数据放入dataframe
+data = pd.DataFrame(columns=["地区","日期","温度"])
+data["地区"] = region
+data["日期"] = date
+data["温度"] = temp
+data = deal_data(data
+                 
+data.to_csv("C:/Users/22524/Desktop/全国省会历史天气.csv",index=False,
+            encoding="utf-8-sig")
+
+                 
+
+
