@@ -1,203 +1,167 @@
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-import math
-import requests
-from bs4 import BeautifulSoup
-import csv
-import json
+import plotly
+import plotly.graph_objects as go
+import plotly.io as pio
+import psutil
+import plotly.offline
+from plotly import subplots
 
-def calc_corr(a, b):
+#当天的温度等的变化情况
+#多个子图
+def today_line(city):
+    fig = subplots.make_subplots(rows=2,cols=2,
+                                subplot_titles=["温度", 
+                                    "相对湿度", 
+                                    "降水量", 
+                                    "空气质量"], )
+    #折线图
+    line0 = go.Scatter(x=data_today_CN[data_today_CN["地区"]==city]["时间"],
+                       y=data_today_CN[data_today_CN["地区"]==city]["温度"],
+                       name="温度",
+                       mode = 'lines+markers'
+                      )
+    line1 = go.Scatter(x=data_today_CN[data_today_CN["地区"]==city]["时间"],
+                       y=data_today_CN[data_today_CN["地区"]==city]["相对湿度"],
+                       name="相对湿度",
+                       mode = 'lines+markers'
+                      )
+#     line2 = go.Scatter(x=data_today_CN[data_today_CN["地区"]==city]["时间"],
+#                        y=data_today_CN[data_today_CN["地区"]==city]["空气质量"],
+#                        name="空气质量",
+#                        mode = 'lines+markers'
+#                       )
+#     line3 = go.Scatter(x=data_today_CN[data_today_CN["地区"]==city]["时间"],
+#                        y=data_today_CN[data_today_CN["地区"]==city]["降水量"],
+#                        name="降水量",
+#                        mode = 'lines+markers'
+#                       )
+    bar0 = go.Bar(x=data_today_CN[data_today_CN["地区"]==city]["时间"],
+                  y=data_today_CN[data_today_CN["地区"]==city]["空气质量"],
+                  name="空气质量",
+                  marker_color='rgb(255, 255, 204)')
+    bar1 = go.Bar(x=data_today_CN[data_today_CN["地区"]==city]["时间"],
+                  y=data_today_CN[data_today_CN["地区"]==city]["降水量"],
+                  name="降水量",
+                  marker_color='rgb(102, 204, 255)')
+    
+    
+    fig.append_trace(line0,1,1)
+    fig.append_trace(line1,1,2)
+    fig.append_trace(bar1,2,1)
+    fig.append_trace(bar0,2,2)
+    
+    fig["layout"]["xaxis"].update({"title": "","tickangle":45})
+    fig["layout"]["yaxis"].update({"title": "(℃)"})
+    fig["layout"]["xaxis2"].update({"title": "","tickangle":45})
+    fig["layout"]["yaxis2"].update({"title": "(%)"})
+    fig["layout"]["xaxis3"].update({"title": "","tickangle":45})
+    fig["layout"]["yaxis3"].update({"title": "(mm)"})
+    fig["layout"]["xaxis4"].update({"title": "","tickangle":45})
+    fig["layout"]["yaxis4"].update({"title": ""})
+    #fig = go.Figure([line0,line1,line3,bar0])
+    fig.update_layout(
+        title = city
+    )
+    #将图像写入html文件中
+    plotly.offline.plot(fig,filename='C:/Users/22524/Desktop/当天/'+city+'_1.html')
+    
+#未来七天的温度变化情况
+def seven_future(city):
+    data = data_week_CN.copy()
+    data["温度"] = data["温度"].apply(lambda x: x[:-1])
+    line = go.Scatter(x=data[data["地区"]==city]["时间"],
+                       y=data[data["地区"]==city]["温度"],
+                       name="温度",
+                       mode = 'lines+markers'
+                      )
+    fig = go.Figure(line)
+    fig.update_layout(
+        title = "温度变化情况"+"("+city+")",
+        xaxis_title = "时间",
+        yaxis_title = "温度"
+    )
+    #将图像写入html文件中
+    plotly.offline.plot(fig,filename='C:/Users/22524/Desktop/未来七天/'+city+'_7.html')
+    #fig.show()
+    
+#空气质量对比图
+#柱状图，orientation参数设定横向还是纵向,marker_color参数设置图的颜色
+data = data_today_CN.groupby("地区")["空气质量"].mean().round(decimals=1).reset_index()
+bar0 = go.Bar(x=data["空气质量"],
+              y=data["地区"],
+              orientation='h',
+              marker_color='rgb(255, 255, 204)')
+fig = go.Figure([bar0])
+#barmode参数用于选定图的显示形式，默认为并列形式
+fig.update_layout(title = "空气质量对比",
+                  xaxis_title = "空气质量",
+                  yaxis_title = "城市"
+                  )
+plotly.offline.plot(fig,filename='C:/Users/22524/Desktop/'+'全国省会城市空气质量对比.html')
+fig.show()
 
-	a_avg = sum(a)/len(a)
-	b_avg = sum(b)/len(b)
-	cov_ab = sum([(x - a_avg)*(y - b_avg) for x,y in zip(a, b)])
-	sq = math.sqrt(sum([(x - a_avg)**2 for x in a])*sum([(x - b_avg)**2 for x in b]))
-	corr_factor = cov_ab/sq
-	return corr_factor
-
-
-def corr_tem_hum(data):
-
-	tem = data['温度']
-	hum = data['相对湿度']
-	plt.scatter(tem,hum,color='blue')
-	plt.title("温湿度相关性分析图")
-	plt.xlabel("温度/℃")
-	plt.ylabel("相对湿度/%")
-	plt.text(20,40,"相关系数为："+str(calc_corr(tem,hum)),fontdict={'size':'10','color':'red'})
-	plt.show()
-	print("相关系数为："+str(calc_corr(tem,hum)))
-
-
-
-def hum_curve(data):
-
-	hour = list(data['小时'])
-	hum = list(data['相对湿度'])
-	for i in range(0,24):
-		if math.isnan(hum[i]) == True:
-			hum[i] = hum[i-1]
-	hum_ave = sum(hum)/24					# 求平均相对湿度
-	hum_max = max(hum)
-	hum_max_hour = hour[hum.index(hum_max)]	# 求最高相对湿度
-	hum_min = min(hum)
-	hum_min_hour = hour[hum.index(hum_min)]	# 求最低相对湿度
-	x = []
-	y = []
-	for i in range(0, 24):
-		x.append(i)
-		y.append(hum[hour.index(i)])
-	plt.figure(2)
-	plt.plot(x,y,color='blue',label='相对湿度')							# 画出相对湿度曲线
-	plt.scatter(x,y,color='blue')			# 点出每个时刻的相对湿度
-	plt.plot([0, 24], [hum_ave, hum_ave], c='red', linestyle='--',label='平均相对湿度') 	# 画出平均相对湿度虚线
-	plt.text(hum_max_hour+0.15, hum_max+0.15, str(hum_max), ha='center', va='bottom', fontsize=10.5)  # 标出最高相对湿度
-	plt.text(hum_min_hour+0.15, hum_min+0.15, str(hum_min), ha='center', va='bottom', fontsize=10.5)  # 标出最低相对湿度
-	plt.xticks(x)
-	plt.legend()
-	plt.title('一天相对湿度变化曲线图')
-	plt.xlabel('时间/h')
-	plt.ylabel('百分比/%')
-	plt.show()
-  
-  def weather_pie(data):
-
-	weather = list(data['天气'])
-	dic_wea = { }
-	for i in range(0,14):
-		if weather[i] in dic_wea.keys():
-			dic_wea[weather[i]] += 1
-		else:
-			dic_wea[weather[i]] = 1
-	print(dic_wea)
-	explode=[0.01]*len(dic_wea.keys())
-	color = ['lightskyblue','silver','yellow','salmon','grey','lime','gold','red','green','pink']
-	plt.pie(dic_wea.values(),explode=explode,labels=dic_wea.keys(),autopct='%1.1f%%',colors=color)
-	plt.title('未来14天气候分布饼图')
-	plt.show()
-
-def getHTMLtext(url):
-    """请求获得网页内容"""
-    try:
-        r = requests.get(url, timeout=30)
-        r.raise_for_status()
-        r.encoding = r.apparent_encoding
-        print("成功访问")
-        return r.text
-    except:
-        print("访问错误")
-        return " "
-
-
-def get_content(html):
-    """处理得到有用信息保存数据文件"""
-    final = []  # 初始化一个列表保存数据
-    bs = BeautifulSoup(html, "html.parser")  # 创建BeautifulSoup对象
-    body = bs.body
-    data = body.find('div', {'id': '7d'})  # 找到div标签且id = 7d
-    # 下面爬取当天的数据
-    data2 = body.find_all('div', {'class': 'left-div'})
-    text = data2[2].find('script').string
-    text = text[text.index('=') + 1:-2]  # 移除改var data=将其变为json数据
-    jd = json.loads(text)
-    dayone = jd['od']['od2']  # 找到当天的数据
-    final_day = []  # 存放当天的数据
-    count = 0
-    for i in dayone:
-        temp = []
-        if count <= 23:
-            temp.append(i['od21'])  # 添加时间
-            temp.append(i['od22'])  # 添加当前时刻温度
-            temp.append(i['od24'])  # 添加当前时刻风力方向
-            temp.append(i['od25'])  # 添加当前时刻风级
-            temp.append(i['od26'])  # 添加当前时刻降水量
-            temp.append(i['od27'])  # 添加当前时刻相对湿度
-            temp.append(i['od28'])  # 添加当前时刻控制质量
-            # print(temp)
-            final_day.append(temp)
-        count = count + 1
-    # 下面爬取7天的数据	
-    ul = data.find('ul')  # 找到所有的ul标签
-    li = ul.find_all('li')  # 找到左右的li标签
-    i = 0  # 控制爬取的天数
-    for day in li:  # 遍历找到的每一个li
-        if i < 7 and i > 0:
-            temp = []  # 临时存放每天的数据
-            date = day.find('h1').string  # 得到日期
-            date = date[0:date.index('日')]  # 取出日期号
-            temp.append(date)
-            inf = day.find_all('p')  # 找出li下面的p标签,提取第一个p标签的值，即天气
-            temp.append(inf[0].string)
-
-            tem_low = inf[1].find('i').string  # 找到最低气温
-
-            if inf[1].find('span') is None:  # 天气预报可能没有最高气温
-                tem_high = None
-            else:
-                tem_high = inf[1].find('span').string  # 找到最高气温
-            temp.append(tem_low[:-1])
-            if tem_high[-1] == '℃':
-                temp.append(tem_high[:-1])
-            else:
-                temp.append(tem_high)
-
-            wind = inf[2].find_all('span')  # 找到风向
-            for j in wind:
-                temp.append(j['title'])
-
-            wind_scale = inf[2].find('i').string  # 找到风级
-            index1 = wind_scale.index('级')
-            temp.append(int(wind_scale[index1 - 1:index1]))
-            final.append(temp)
-        i = i + 1
-    return final_day, final
-
-
-# print(final)    
-def get_content2(html):
-    """处理得到有用信息保存数据文件"""
-    final = []  # 初始化一个列表保存数据
-    bs = BeautifulSoup(html, "html.parser")  # 创建BeautifulSoup对象
-    body = bs.body
-    data = body.find('div', {'id': '15d'})  # 找到div标签且id = 15d
-    ul = data.find('ul')  # 找到所有的ul标签
-    li = ul.find_all('li')  # 找到左右的li标签
-    final = []
-    i = 0  # 控制爬取的天数
-    for day in li:  # 遍历找到的每一个li
-        if i < 8:
-            temp = []  # 临时存放每天的数据
-            date = day.find('span', {'class': 'time'}).string  # 得到日期
-            date = date[date.index('（') + 1:-2]  # 取出日期号
-            temp.append(date)
-            weather = day.find('span', {'class': 'wea'}).string  # 找到天气
-            temp.append(weather)
-            tem = day.find('span', {'class': 'tem'}).text  # 找到温度
-            temp.append(tem[tem.index('/') + 1:-1])  # 找到最低气温
-            temp.append(tem[:tem.index('/') - 1])  # 找到最高气温
-            wind = day.find('span', {'class': 'wind'}).string  # 找到风向
-            if '转' in wind:  # 如果有风向变化
-                temp.append(wind[:wind.index('转')])
-                temp.append(wind[wind.index('转') + 1:])
-            else:  # 如果没有风向变化，前后风向一致
-                temp.append(wind)
-                temp.append(wind)
-            wind_scale = day.find('span', {'class': 'wind1'}).string  # 找到风级
-            index1 = wind_scale.index('级')
-            temp.append(int(wind_scale[index1 - 1:index1]))
-
-            final.append(temp)
-    return final
-
-
-def write_to_csv(file_name, data, day=14):
-    """保存为csv文件"""
-    with open(file_name, 'a', errors='ignore', newline='') as f:
-        if day == 14:
-            header = ['日期', '天气', '最低气温', '最高气温', '风向1', '风向2', '风级']
-        else:
-            header = ['小时', '温度', '风力方向', '风级', '降水量', '相对湿度', '空气质量']
-        f_csv = csv.writer(f)
-        f_csv.writerow(header)
-        f_csv.writerows(data)
+def get_temp(city):
+#     data1 = data[data["地区"]==city]
+#     ave_temp = []
+#     for i in range(2011,2020):
+#         ave_temp.append(data1[data1["year"]==i]["平均温度"].values)
+#     return ave_temp
+# def paint_history(city):
+#     #折线图
+#     temp_data = get_temp(city)
+#     list_mon = []
+#     for i in range(1,13):
+#         list_mon.append(str(i)+"月")
+#     line0 = go.Scatter(x=list_mon,
+#                        y=temp_data[0],
+#                        name="2011",
+#                        mode = 'lines+markers'
+#                       )
+#     line1 = go.Scatter(x=list_mon,
+#                        y=temp_data[1],
+#                        name="2012",
+#                        mode = 'lines+markers'
+#                       )
+#     line2 = go.Scatter(x=list_mon,
+#                        y=temp_data[2],
+#                        name="2013",
+#                        mode = 'lines+markers'
+#                       )
+#     line3 = go.Scatter(x=list_mon,
+#                        y=temp_data[3],
+#                        name="2014",
+#                        mode = 'lines+markers'
+#                       )
+#     line4 = go.Scatter(x=list_mon,
+#                        y=temp_data[4],
+#                        name="2015",
+#                        mode = 'lines+markers'
+#                       )
+#     line5 = go.Scatter(x=list_mon,
+#                        y=temp_data[5],
+#                        name="2016",
+#                        mode = 'lines+markers'
+#                       )
+#     line6 = go.Scatter(x=list_mon,
+#                        y=temp_data[6],
+#                        name="2017",
+#                        mode = 'lines+markers'
+#                       )
+#     line7 = go.Scatter(x=list_mon,
+#                        y=temp_data[7],
+#                        name="2018",
+#                        mode = 'lines+markers'
+#                       )
+#     line8 = go.Scatter(x=list_mon,
+#                        y=temp_data[8],
+#                        name="2019",
+#                        mode = 'lines+markers'
+#                       )
+#     fig = go.Figure([line0,line1,line2,line3,line5,line6,line7,line8])
+#     fig.update_layout(
+#         title = "历年温度变化情况"+"("+city+")",
+#         xaxis_title = "时间",
+#         yaxis_title = "数值"
+#     )
+#     #将图像写入html文件中
+#     plotly.offline.plot(fig,filename='C:/Users/22524/Desktop/历史天气变化/'+city+'_history.html')
+#     #fig.show()
