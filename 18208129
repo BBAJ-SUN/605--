@@ -103,4 +103,12 @@ for i in range(24):
     # time.sleep(0.001)
     
     
-    
+import imageio
+img_paths = []
+for i in range(24):
+    img_paths.append("img/"+str(i)+".png")
+
+gif_images = []
+for path in img_paths:
+    gif_images.append(imageio.imread(path))
+imageio.mimsave("动态图.gif",gif_images,fps=8)
